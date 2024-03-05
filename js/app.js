@@ -24,25 +24,9 @@ export default class App {
 
     this.time = 0
 
-    // Inizializza le variabili del mouse
-    this.mouseX = 0
-    this.mouseY = 0
-
     this.addObjects()
-    this.setupMouseMove() // Metodo per impostare l'ascoltatore di movimento del mouse
     this.resize()
     this.render()
-  }
-
-  // MouseMove
-  setupMouseMove() {
-    // Ascolta l'evento mousemove sul document o renderer.domElement
-    document.addEventListener('mousemove', this.mouseMove.bind(this))
-  }
-
-  mouseMove(e) {
-    this.mouseX = (e.offsetX / this.width) * 2 - 1
-    this.mouseY = -(e.offsetY / this.height) * 2 + 1
   }
 
   // Resize
@@ -76,7 +60,6 @@ export default class App {
   render() {
     this.time += 0.05
     this.material.uniforms.time.value = this.time
-    this.material.uniforms.mouseX.value = this.mouseX
 
     this.renderer.render(this.scene, this.camera)
     window.requestAnimationFrame(this.render.bind(this))

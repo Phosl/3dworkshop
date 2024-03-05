@@ -1,8 +1,7 @@
 varying vec2 vUv;
 uniform float time;
-uniform float mouseX;
 void main() {
-   float fastTime = mouseX;
+   float fastTime = time * 2.;
     vUv = uv;
     vec3  newpos = position;
     newpos.z +=  sin( fastTime + position.x*10. ) * 0.1;
