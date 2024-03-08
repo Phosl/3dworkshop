@@ -7,6 +7,11 @@ import simVertex from './shaders/simVertex.glsl'
 import simFragment from './shaders/simFragment.glsl'
 
 import texture from '../test.jpg'
+
+function lerp(a, b, n) {
+  return (1 - n) * a + n * b
+}
+
 export default class App {
   constructor(options) {
     this.container = options.dom
@@ -14,6 +19,9 @@ export default class App {
 
     this.width = this.container.offsetWidth
     this.height = this.container.offsetHeight
+
+    this.raycaster = new THREE.Raycaster()
+    this.pointer = new THREE.Vector2()
 
     this.renderer = new THREE.WebGLRenderer({
       alpha: true,
@@ -28,10 +36,41 @@ export default class App {
 
     this.time = 0
 
+    this.mouseEvents()
     this.setupFBO()
     this.addObjects()
     this.setupResize()
     this.render()
+  }
+
+  // Mouse Events
+  mouseEvents() {
+    //Get intersection from particles in not raccomanded so ->
+    //Create a plane to get intersection
+    this.planeMesh = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshNormalMaterial())
+
+    this.dummy = new THREE.Mesh(
+      new THREE.SphereGeometry(0.05, 32, 32),
+      new THREE.MeshNormalMaterial(),
+    )
+
+    this.scene.add(this.dummy)
+    // this.scene.add(this.planeMesh)
+
+    window.addEventListener('mousemove', (e) => {
+      this.pointer.x = (e.clientX / this.width) * 2 - 1
+      this.pointer.y = -(e.clientY / this.height) * 2 + 1
+      this.raycaster.setFromCamera(this.pointer, this.camera)
+
+      //Intersect whit the Plane Mesh
+      const intersects = this.raycaster.intersectObjects([this.planeMesh])
+      if (intersects.length > 0) {
+        this.dummy.position.copy(intersects[0].point)
+        // console.log(intersects[0].point)
+        // Update uniform on mouse position of simMaterial
+        this.simMaterial.uniforms.uMouse.value = intersects[0].point
+      }
+    })
   }
 
   // Resize
@@ -50,8 +89,8 @@ export default class App {
     for (let i = 0; i < this.size; i++) {
       for (let j = 0; j < this.size; j++) {
         const index = i * this.size + j
-        data[4 * index] = Math.random() * 2 - 1
-        data[4 * index + 1] = Math.random() * 2 - 1
+        data[4 * index] = lerp(-0.5, 0.5, j / (this.size - 1))
+        data[4 * index + 1] = lerp(-0.5, 0.5, i / (this.size - 1))
         data[4 * index + 2] = 0
         data[4 * index + 3] = 1
       }
@@ -80,7 +119,12 @@ export default class App {
     this.simMaterial = new THREE.ShaderMaterial({
       uniforms: {
         time: {value: 0},
-        uTexture: {value: this.positions},
+        // add mouse position as vector of 3 dim
+        uMouse: {value: new THREE.Vector3(0, 0, 0)},
+        // get the current position that update every frames
+        uCurrentPosition: {value: this.positions},
+        // preserve orginal position, static
+        uOriginalPosition: {value: this.positions},
       },
       vertexShader: simVertex,
       fragmentShader: simFragment,
@@ -168,7 +212,7 @@ export default class App {
     this.renderTarget1 = tmp
 
     this.material.uniforms.uTexture.value = this.renderTarget.texture
-    this.simMaterial.uniforms.uTexture.value = this.renderTarget1.texture
+    this.simMaterial.uniforms.uCurrentPosition.value = this.renderTarget1.texture
     window.requestAnimationFrame(this.render.bind(this))
   }
 }
