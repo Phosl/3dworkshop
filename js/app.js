@@ -7,13 +7,35 @@ import simVertex from './shaders/simVertex.glsl'
 import simFragment from './shaders/simFragment.glsl'
 
 import texture from '../test.jpg'
+import t1 from '../logo.png'
+import t2 from '../super.png'
+import GUI from 'lil-gui'
 
+// lerp
 function lerp(a, b, n) {
   return (1 - n) * a + n * b
 }
 
+// defaul load image
+const loadImage = (path) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.crossOrigin = 'Anonymous' // avoid CORS if used with Canvas
+    img.src = path
+    img.onload = () => {
+      resolve(img)
+    }
+    img.onerror = (e) => {
+      reject(e)
+    }
+  })
+}
+
 export default class App {
   constructor(options) {
+    this.size = 256
+    this.number = this.size * this.size
+
     this.container = options.dom
     this.scene = new THREE.Scene()
 
@@ -25,7 +47,9 @@ export default class App {
 
     this.renderer = new THREE.WebGLRenderer({
       alpha: true,
+      antialias: true,
     })
+    this.renderer.setClearColor(0x222222, 1)
     this.renderer.setSize(this.width, this.height)
     this.container.appendChild(this.renderer.domElement)
 
@@ -36,11 +60,100 @@ export default class App {
 
     this.time = 0
 
-    this.mouseEvents()
-    this.setupFBO()
-    this.addObjects()
-    this.setupResize()
-    this.render()
+    // GUI
+    this.setupSettings()
+
+    // To load 2 texture
+    Promise.all([this.getPixelDataFromImage(t1), this.getPixelDataFromImage(t2)]).then(
+      (textures) => {
+        this.data = textures[0]
+        this.data1 = textures[1]
+        // moving all after load texture
+        this.mouseEvents()
+        this.setupFBO()
+        this.addObjects()
+        this.setupResize()
+        this.render()
+      },
+    )
+  }
+
+  //Setup GUI
+  setupSettings() {
+    this.settings = {
+      progress: 0,
+    }
+    this.gui = new GUI()
+    this.gui.add(this.settings, 'progress', 0, 1, 0.01).onChange((val) => {
+      this.simMaterial.uniforms.uProgress.value = val
+    })
+  }
+  // Get pixels data from image
+  async getPixelDataFromImage(url) {
+    let img = await loadImage(url)
+    let width = 200
+    let canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = width
+    let ctx = canvas.getContext('2d')
+    ctx.drawImage(img, 0, 0, width, width)
+    let canvasData = ctx.getImageData(0, 0, width, width).data
+
+    let pixels = []
+    for (let i = 0; i < canvasData.length; i += 4) {
+      let x = (i / 4) % width
+      // divided by 4 becouse pixels has rgb + alpha
+      // *** range by 0 to 200(width) thats its big and we use just range btw -1 to 1
+      let y = Math.floor(i / 4 / width)
+      // save pixels if black value
+      if (canvasData[i] < 9) {
+        // pixels.push({x, y})
+        // *** the fix
+        pixels.push({x: x / width - 0.5, y: 0.5 - y / width})
+      }
+    }
+    console.log(pixels)
+
+    // Create data Texture
+    const data = new Float32Array(4 * this.number)
+
+    for (let i = 0; i < this.size; i++) {
+      for (let j = 0; j < this.size; j++) {
+        const index = i * this.size + j
+
+        // random placement
+        let randomPixels = pixels[Math.floor(Math.random() * pixels.length)]
+
+        // random pixels in the screen
+        if (Math.random() > 0.95) {
+          // moltiply for 3 or 4 to fill all the screen with particle
+          randomPixels = {x: 3 * (Math.random() - 0.5), y: 3 * (Math.random() - 0.5)}
+        }
+
+        // place
+
+        data[4 * index] = randomPixels.x + (Math.random() - 0.5) * 0.01
+        data[4 * index + 1] = randomPixels.y + (Math.random() - 0.5) * 0.01
+        data[4 * index + 2] = 0
+        data[4 * index + 3] = 1
+
+        // place on the grid
+        // data[4 * index] = lerp(-0.5, 0.5, j / (this.size - 1))
+        // data[4 * index + 1] = lerp(-0.5, 0.5, i / (this.size - 1))
+        // data[4 * index + 2] = 0
+        // data[4 * index + 3] = 1
+      }
+    }
+
+    let dataTexture = new THREE.DataTexture(
+      data,
+      this.size,
+      this.size,
+      THREE.RGBAFormat,
+      THREE.FloatType,
+    )
+    dataTexture.needsUpdate = true
+    return dataTexture
   }
 
   // Mouse Events
@@ -80,9 +193,6 @@ export default class App {
 
   // Setup FBO
   setupFBO() {
-    this.size = 32
-    this.number = this.size * this.size
-
     // create Data Texture
     const data = new Float32Array(4 * this.number)
 
@@ -121,10 +231,15 @@ export default class App {
         time: {value: 0},
         // add mouse position as vector of 3 dim
         uMouse: {value: new THREE.Vector3(0, 0, 0)},
+        uProgress: {value: 0},
         // get the current position that update every frames
-        uCurrentPosition: {value: this.positions},
-        // preserve orginal position, static
-        uOriginalPosition: {value: this.positions},
+        // uCurrentPosition: {value: this.positions},
+        // // preserve orginal position, static
+        // uOriginalPosition: {value: this.positions},
+        // Now we use the datatexture position
+        uCurrentPosition: {value: this.data},
+        uOriginalPosition: {value: this.data},
+        uOriginalPosition1: {value: this.data1},
       },
       vertexShader: simVertex,
       fragmentShader: simFragment,
@@ -177,7 +292,7 @@ export default class App {
     this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
     this.geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
 
-    this.material = new THREE.MeshNormalMaterial()
+    // this.material = new THREE.MeshNormalMaterial()
 
     this.material = new THREE.ShaderMaterial({
       uniforms: {
@@ -187,6 +302,9 @@ export default class App {
       },
       vertexShader: vertexShader,
       fragmentShader: fragmentShader,
+      depthWrite: false,
+      depthTest: false,
+      transparent: true,
     })
 
     this.mesh = new THREE.Points(this.geometry, this.material)

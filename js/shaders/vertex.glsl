@@ -11,9 +11,9 @@ void main() {
     newpos.xy = color.xy;
     // newpos.x += 1.;
     // vec4 -> rgb + alpha
-    vec4 mvPosition = modelViewMatrix * vec4( newpos, 1.0 );
+    vec4 mvPosition = modelViewMatrix * vec4( newpos, 1. ) ;
 
-    gl_PointSize = ( 10.0 / -mvPosition.z );
+    gl_PointSize = ( 1.0 / -mvPosition.z );
 
     gl_Position = projectionMatrix * mvPosition ;
 
