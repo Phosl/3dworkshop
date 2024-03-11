@@ -33,7 +33,7 @@ const loadImage = (path) => {
 
 export default class App {
   constructor(options) {
-    this.size = 256
+    this.size = 516
     this.number = this.size * this.size
 
     this.container = options.dom
@@ -82,10 +82,27 @@ export default class App {
   setupSettings() {
     this.settings = {
       progress: 0,
+      particleSpeed: 0.000001,
+      interactionForceValue: 0.0001,
+      particleSize: 0.1,
+      frictionValue: 0.99,
     }
     this.gui = new GUI()
-    this.gui.add(this.settings, 'progress', 0, 1, 0.01).onChange((val) => {
+    this.gui.add(this.settings, 'progress', 0, 1, 0.001).onChange((val) => {
       this.simMaterial.uniforms.uProgress.value = val
+    })
+    this.gui.add(this.settings, 'particleSpeed', 0.0000001, 0.001, 0.000001).onChange((val) => {
+      this.simMaterial.uniforms.particleSpeed.value = val
+    })
+    this.gui.add(this.settings, 'interactionForceValue', 0.0001, 0.01, 0.000001).onChange((val) => {
+      this.simMaterial.uniforms.interactionForceValue.value = val
+    })
+    this.gui.add(this.settings, 'particleSize', 0.01, 10, 0.01).onChange((val) => {
+      this.material.uniforms.particleSize.value = val
+    })
+
+    this.gui.add(this.settings, 'frictionValue', 0.01, 0.999, 0.001).onChange((val) => {
+      this.simMaterial.uniforms.frictionValue.value = val
     })
   }
   // Get pixels data from image
@@ -134,8 +151,8 @@ export default class App {
 
         data[4 * index] = randomPixels.x + (Math.random() - 0.5) * 0.01
         data[4 * index + 1] = randomPixels.y + (Math.random() - 0.5) * 0.01
-        data[4 * index + 2] = 0
-        data[4 * index + 3] = 1
+        data[4 * index + 2] = (Math.random() - 0.5) * 0.01
+        data[4 * index + 3] = (Math.random() - 0.5) * 0.01
 
         // place on the grid
         // data[4 * index] = lerp(-0.5, 0.5, j / (this.size - 1))
@@ -163,7 +180,7 @@ export default class App {
     this.planeMesh = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshNormalMaterial())
 
     this.dummy = new THREE.Mesh(
-      new THREE.SphereGeometry(0.05, 32, 32),
+      new THREE.SphereGeometry(0.025, 10, 10),
       new THREE.MeshNormalMaterial(),
     )
 
@@ -232,6 +249,9 @@ export default class App {
         // add mouse position as vector of 3 dim
         uMouse: {value: new THREE.Vector3(0, 0, 0)},
         uProgress: {value: 0},
+        particleSpeed: {value: 0.000001},
+        interactionForceValue: {value: 0.0001},
+        frictionValue: {value: 0.99},
         // get the current position that update every frames
         // uCurrentPosition: {value: this.positions},
         // // preserve orginal position, static
@@ -299,6 +319,7 @@ export default class App {
         time: {value: 0},
         // uTexture: {value: new THREE.TextureLoader().load(texture)},
         uTexture: {value: this.positions},
+        particleSize: {value: 0.1},
       },
       vertexShader: vertexShader,
       fragmentShader: fragmentShader,
@@ -331,6 +352,7 @@ export default class App {
 
     this.material.uniforms.uTexture.value = this.renderTarget.texture
     this.simMaterial.uniforms.uCurrentPosition.value = this.renderTarget1.texture
+
     window.requestAnimationFrame(this.render.bind(this))
   }
 }

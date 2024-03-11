@@ -1,6 +1,7 @@
 varying vec2 vUv;
 uniform float time;
 uniform sampler2D uTexture;
+uniform float particleSize;
 
 void main() {
 //    float fastTime = time * 2.;
@@ -13,7 +14,7 @@ void main() {
     // vec4 -> rgb + alpha
     vec4 mvPosition = modelViewMatrix * vec4( newpos, 1. ) ;
 
-    gl_PointSize = ( 1.0 / -mvPosition.z );
+    gl_PointSize = ( particleSize / -mvPosition.z );
 
     gl_Position = projectionMatrix * mvPosition ;
 
