@@ -252,6 +252,7 @@ export default class App {
         particleSpeed: {value: 0.000001},
         interactionForceValue: {value: 0.0001},
         frictionValue: {value: 0.99},
+        uTime: {value: 0},
         // get the current position that update every frames
         // uCurrentPosition: {value: this.positions},
         // // preserve orginal position, static
@@ -352,6 +353,7 @@ export default class App {
 
     this.material.uniforms.uTexture.value = this.renderTarget.texture
     this.simMaterial.uniforms.uCurrentPosition.value = this.renderTarget1.texture
+    this.simMaterial.uniforms.uTime.value = this.time
 
     window.requestAnimationFrame(this.render.bind(this))
   }

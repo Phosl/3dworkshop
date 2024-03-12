@@ -3,15 +3,20 @@ uniform float uProgress;
 uniform float particleSpeed;
 uniform float interactionForceValue;
 uniform float frictionValue;
+uniform float uTime;
 
 uniform sampler2D uCurrentPosition;
 uniform sampler2D uOriginalPosition;
 uniform sampler2D uOriginalPosition1;
 uniform vec3 uMouse;
 
+
+// https://stackoverflow.com/questions/4200224/random-noise-functions-for-glsl
+float rand(vec2 co){
+    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+}
 void main() {
-
-
+    float offset = rand(vUv);
     vec2 position = texture2D(uCurrentPosition, vUv).xy;
     vec2 original = texture2D(uOriginalPosition, vUv).xy;
     vec2 original1 = texture2D(uOriginalPosition1, vUv).xy;
@@ -19,6 +24,7 @@ void main() {
     vec2 velocity = texture2D(uCurrentPosition, vUv).zw;
 
     vec2 finalOriginal = mix(original,original1, uProgress);
+
     // friction
     velocity *= frictionValue;
     // particled attraction to shape force
@@ -41,6 +47,14 @@ void main() {
         // force -> accelleration
         // (1.0 - mouseDistance / maxDistance) this is important because at the edge of the mouse the result is 0
         velocity += direction * (1.0 - mouseDistance / maxDistance) * interactionForceValue;
+    }
+
+    // particle life - life span of the particle
+    float lifespan = 10.;
+    float age = mod(uTime + lifespan*offset, lifespan);
+    if(age<1.) {
+        velocity = vec2(0.0,0.0);
+        position.xy = finalOriginal;
     }
 
     position.xy += velocity;
