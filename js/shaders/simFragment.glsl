@@ -49,7 +49,7 @@ void main() {
         velocity += direction * (1.0 - mouseDistance / maxDistance) * interactionForceValue;
     }
 
-    // particle life - life span of the particle
+    // particle lifecycle - life span of the particle
     float lifespan = 10.;
     float age = mod(uTime + lifespan*offset, lifespan);
     if(age<1.) {
