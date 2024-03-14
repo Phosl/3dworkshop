@@ -33,7 +33,7 @@ const loadImage = (path) => {
 
 export default class App {
   constructor(options) {
-    this.size = 516
+    this.size = 512
     this.number = this.size * this.size
 
     this.container = options.dom
@@ -66,7 +66,7 @@ export default class App {
     // To load 2 texture
     Promise.all([this.getPixelDataFromImage(t1), this.getPixelDataFromImage(t2)]).then(
       (textures) => {
-        this.data = textures[0]
+        this.data = this.getPointsOnSphere()
         this.data1 = textures[1]
         // moving all after load texture
         this.mouseEvents()
@@ -84,7 +84,7 @@ export default class App {
       progress: 0,
       particleSpeed: 0.000001,
       interactionForceValue: 0.0001,
-      particleSize: 0.1,
+      particleSize: 0.0001,
       frictionValue: 0.99,
     }
     this.gui = new GUI()
@@ -97,7 +97,7 @@ export default class App {
     this.gui.add(this.settings, 'interactionForceValue', 0.0001, 0.01, 0.000001).onChange((val) => {
       this.simMaterial.uniforms.interactionForceValue.value = val
     })
-    this.gui.add(this.settings, 'particleSize', 0.01, 10, 0.01).onChange((val) => {
+    this.gui.add(this.settings, 'particleSize', 0.0001, 10, 0.00001).onChange((val) => {
       this.material.uniforms.particleSize.value = val
     })
 
@@ -105,6 +105,39 @@ export default class App {
       this.simMaterial.uniforms.frictionValue.value = val
     })
   }
+
+  getPointsOnSphere() {
+    const data = new Float32Array(4 * this.number)
+    for (let i = 0; i < this.size; i++) {
+      for (let j = 0; j < this.size; j++) {
+        const index = i * this.size + j
+        // generate point on a sphere
+        let theta = Math.random() * Math.PI * 2
+        let phi = Math.acos(Math.random() * 2 - 1) // btw 0 and PI - uniform diffusion
+        // let phi = Math.random() * Math.PI // non uniform diffusion
+
+        let x = Math.sin(phi) * Math.cos(theta)
+        let y = Math.sin(phi) * Math.sin(theta)
+        let z = Math.cos(phi)
+
+        data[4 * index] = x
+        data[4 * index + 1] = y
+        data[4 * index + 2] = z
+        data[4 * index + 3] = (Math.random() - 0.5) * 0.01
+      }
+    }
+
+    let dataTexture = new THREE.DataTexture(
+      data,
+      this.size,
+      this.size,
+      THREE.RGBAFormat,
+      THREE.FloatType,
+    )
+    dataTexture.needsUpdate = true
+    return dataTexture
+  }
+
   // Get pixels data from image
   async getPixelDataFromImage(url) {
     let img = await loadImage(url)
@@ -177,10 +210,13 @@ export default class App {
   mouseEvents() {
     //Get intersection from particles in not raccomanded so ->
     //Create a plane to get intersection
-    this.planeMesh = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshNormalMaterial())
+    this.planeMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 30, 30),
+      new THREE.MeshNormalMaterial(),
+    )
 
     this.dummy = new THREE.Mesh(
-      new THREE.SphereGeometry(0.025, 10, 10),
+      new THREE.SphereGeometry(0.015, 10, 10),
       new THREE.MeshNormalMaterial(),
     )
 
@@ -320,7 +356,7 @@ export default class App {
         time: {value: 0},
         // uTexture: {value: new THREE.TextureLoader().load(texture)},
         uTexture: {value: this.positions},
-        particleSize: {value: 0.1},
+        particleSize: {value: 0.0001},
       },
       vertexShader: vertexShader,
       fragmentShader: fragmentShader,

@@ -17,48 +17,49 @@ float rand(vec2 co){
 }
 void main() {
     float offset = rand(vUv);
-    vec2 position = texture2D(uCurrentPosition, vUv).xy;
-    vec2 original = texture2D(uOriginalPosition, vUv).xy;
-    vec2 original1 = texture2D(uOriginalPosition1, vUv).xy;
+    vec3 position = texture2D(uCurrentPosition, vUv).xyz;
+    vec3 original = texture2D(uOriginalPosition, vUv).xyz;
+    vec3 original1 = texture2D(uOriginalPosition1, vUv).xyz;
 
-    vec2 velocity = texture2D(uCurrentPosition, vUv).zw;
+    // vec2 velocity = texture2D(uCurrentPosition, vUv).zw;
 
-    vec2 finalOriginal = mix(original,original1, uProgress);
+    // vec2 finalOriginal = mix(original,original1, uProgress);
+    vec3 finalOriginal = original;
 
     // friction
-    velocity *= frictionValue;
+    // velocity *= frictionValue;
     // particled attraction to shape force
     // direction where the force shoul be applied
-    vec2 direction = normalize(finalOriginal - position);
+    vec3 direction = normalize(finalOriginal - position);
 
     // apply when particle are far from orinal destination
     // so calulate distance
     float dist = length(finalOriginal - position);
     if(dist > 0.001) {
-        velocity += direction * particleSpeed;
+        position += direction * particleSpeed;
     }
 
 
     // mouse repel force
-    float mouseDistance = distance(position,uMouse.xy);
+    float mouseDistance = distance(position,uMouse);
     float maxDistance = 0.1;
     if(mouseDistance < maxDistance) {
-        vec2 direction = normalize(position - uMouse.xy);
+        vec3 direction = normalize(position - uMouse);
         // force -> accelleration
         // (1.0 - mouseDistance / maxDistance) this is important because at the edge of the mouse the result is 0
-        velocity += direction * (1.0 - mouseDistance / maxDistance) * interactionForceValue;
+        position += direction * (1.0 - mouseDistance / maxDistance) * interactionForceValue;
     }
 
     // particle lifecycle - life span of the particle
-    float lifespan = 10.;
+    float lifespan = 20.;
     float age = mod(uTime + lifespan*offset, lifespan);
     if(age<1.) {
-        velocity = vec2(0.0,0.0);
-        position.xy = finalOriginal;
+        // velocity = vec2(0.0,0.001);
+        position.xyz = finalOriginal;
     }
 
-    position.xy += velocity;
+    // position.xy += velocity;
 
-    gl_FragColor = vec4(position, velocity);
+    gl_FragColor = vec4(position, 1);
 
 }
