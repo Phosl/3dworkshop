@@ -33,7 +33,7 @@ const loadImage = (path) => {
 
 export default class App {
   constructor(options) {
-    this.size = 512
+    this.size = 256
     this.number = this.size * this.size
 
     this.container = options.dom
@@ -54,7 +54,7 @@ export default class App {
     this.container.appendChild(this.renderer.domElement)
 
     this.camera = new THREE.PerspectiveCamera(70, this.width / this.height, 0.01, 10)
-    this.camera.position.z = 1
+    this.camera.position.z = 2
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
 
@@ -82,8 +82,8 @@ export default class App {
   setupSettings() {
     this.settings = {
       progress: 0,
-      particleSpeed: 0.000001,
-      interactionForceValue: 0.0001,
+      particleSpeed: 0.001,
+      interactionForceValue: 0.1,
       particleSize: 0.0001,
       frictionValue: 0.99,
     }
@@ -94,7 +94,7 @@ export default class App {
     this.gui.add(this.settings, 'particleSpeed', 0.0000001, 0.001, 0.000001).onChange((val) => {
       this.simMaterial.uniforms.particleSpeed.value = val
     })
-    this.gui.add(this.settings, 'interactionForceValue', 0.0001, 0.01, 0.000001).onChange((val) => {
+    this.gui.add(this.settings, 'interactionForceValue', 0.0001, 1, 0.000001).onChange((val) => {
       this.simMaterial.uniforms.interactionForceValue.value = val
     })
     this.gui.add(this.settings, 'particleSize', 0.0001, 10, 0.00001).onChange((val) => {
@@ -285,8 +285,8 @@ export default class App {
         // add mouse position as vector of 3 dim
         uMouse: {value: new THREE.Vector3(0, 0, 0)},
         uProgress: {value: 0},
-        particleSpeed: {value: 0.000001},
-        interactionForceValue: {value: 0.0001},
+        particleSpeed: {value: 0.001},
+        interactionForceValue: {value: 0.1},
         frictionValue: {value: 0.99},
         uTime: {value: 0},
         // get the current position that update every frames
