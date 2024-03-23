@@ -35,7 +35,7 @@ const loadImage = (path) => {
 
 export default class App {
   constructor(options) {
-    this.size = 256
+    this.size = 512
     this.number = this.size * this.size
 
     this.container = options.dom
@@ -244,7 +244,9 @@ export default class App {
 
     this.dummy = new THREE.Mesh(
       new THREE.SphereGeometry(0.015, 10, 10),
-      new THREE.MeshNormalMaterial(),
+      new THREE.MeshNormalMaterial({
+        wireframe: true,
+      }),
     )
 
     this.scene.add(this.dummy)
@@ -350,10 +352,10 @@ export default class App {
     this.cameraFBO.lookAt(new THREE.Vector3(0, 0, 0))
 
     let geo = new THREE.PlaneGeometry(2, 2, 2, 2)
-    this.simMaterial = new THREE.MeshBasicMaterial({
-      color: 0xff0000,
-      wireframe: true,
-    })
+    // this.simMaterial = new THREE.MeshBasicMaterial({
+    //   color: 0xff0000,
+    //   wireframe: true,
+    // })
     this.simMaterial = new THREE.ShaderMaterial({
       uniforms: {
         time: {value: 0},
