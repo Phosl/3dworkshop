@@ -2,9 +2,11 @@ import * as THREE from 'three'
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js'
 import vertexShader from './shaders/vertex.glsl'
 import fragmentShader from './shaders/fragment.glsl'
+import {GPUComputationRenderer} from 'three/examples/jsm/misc/GPUComputationRenderer.js'
 
 import simVertex from './shaders/simVertex.glsl'
-import simFragment from './shaders/simFragment.glsl'
+import simFragmentPosition from './shaders/simFragment.glsl'
+import simFragmentVelocity from './shaders/simFragmentVelocity.glsl'
 
 import texture from '../test.jpg'
 import t1 from '../logo.png'
@@ -69,9 +71,10 @@ export default class App {
         this.data = this.getPointsOnSphere()
         this.data1 = textures[1]
         // moving all after load texture
-        this.mouseEvents()
-        this.setupFBO()
         this.addObjects()
+        this.initGPGPU()
+        this.setupFBO()
+        this.mouseEvents()
         this.setupResize()
         this.render()
       },
@@ -83,27 +86,51 @@ export default class App {
     this.settings = {
       progress: 0,
       particleSpeed: 0.001,
-      interactionForceValue: 0.1,
-      particleSize: 0.0001,
+      particleSize: 2,
       frictionValue: 0.99,
     }
     this.gui = new GUI()
     this.gui.add(this.settings, 'progress', 0, 1, 0.001).onChange((val) => {
       this.simMaterial.uniforms.uProgress.value = val
     })
+
     this.gui.add(this.settings, 'particleSpeed', 0.0000001, 0.001, 0.000001).onChange((val) => {
       this.simMaterial.uniforms.particleSpeed.value = val
-    })
-    this.gui.add(this.settings, 'interactionForceValue', 0.0001, 1, 0.000001).onChange((val) => {
-      this.simMaterial.uniforms.interactionForceValue.value = val
     })
     this.gui.add(this.settings, 'particleSize', 0.0001, 10, 0.00001).onChange((val) => {
       this.material.uniforms.particleSize.value = val
     })
-
     this.gui.add(this.settings, 'frictionValue', 0.01, 0.999, 0.001).onChange((val) => {
       this.simMaterial.uniforms.frictionValue.value = val
     })
+  }
+
+  getVelocitiesOnSphere() {
+    const data = new Float32Array(4 * this.number)
+    for (let i = 0; i < this.size; i++) {
+      for (let j = 0; j < this.size; j++) {
+        const index = i * this.size + j
+        // generate point on a sphere
+        let theta = Math.random() * Math.PI * 2
+        let phi = Math.acos(Math.random() * 2 - 1) // btw 0 and PI - uniform diffusion
+        // let phi = Math.random() * Math.PI // non uniform diffusion
+
+        data[4 * index] = 0
+        data[4 * index + 1] = 0
+        data[4 * index + 2] = 0
+        data[4 * index + 3] = 0
+      }
+    }
+
+    let dataTexture = new THREE.DataTexture(
+      data,
+      this.size,
+      this.size,
+      THREE.RGBAFormat,
+      THREE.FloatType,
+    )
+    dataTexture.needsUpdate = true
+    return dataTexture
   }
 
   getPointsOnSphere() {
@@ -235,6 +262,8 @@ export default class App {
         // console.log(intersects[0].point)
         // Update uniform on mouse position of simMaterial
         this.simMaterial.uniforms.uMouse.value = intersects[0].point
+        this.positionUniforms.uMouse.value = intersects[0].point
+        this.velocityUniforms.uMouse.value = intersects[0].point
       }
     })
   }
@@ -242,6 +271,52 @@ export default class App {
   // Resize
   setupResize() {
     window.addEventListener('resize', this.resize.bind(this))
+  }
+
+  // https://threejs.org/examples/webgl_gpgpu_birds.html
+  initGPGPU() {
+    this.gpuCompute = new GPUComputationRenderer(this.size, this.size, this.renderer)
+
+    if (this.renderer.capabilities.isWebGL2 === false) {
+      gpuCompute.setDataType(THREE.HalfFloatType)
+    }
+
+    this.pointsOnSphere = this.getPointsOnSphere()
+    this.positionVariable = this.gpuCompute.addVariable(
+      'uCurrentPosition',
+      simFragmentPosition,
+      this.pointsOnSphere,
+    )
+
+    this.velocityVariable = this.gpuCompute.addVariable(
+      'uCurrentVelocity',
+      simFragmentVelocity,
+      this.getVelocitiesOnSphere,
+    )
+
+    this.gpuCompute.setVariableDependencies(this.positionVariable, [
+      this.positionVariable,
+      this.velocityVariable,
+    ])
+    this.gpuCompute.setVariableDependencies(this.velocityVariable, [
+      this.positionVariable,
+      this.velocityVariable,
+    ])
+
+    this.positionUniforms = this.positionVariable.material.uniforms
+    this.velocityUniforms = this.velocityVariable.material.uniforms
+
+    this.positionUniforms.uTime = {value: 0.0}
+    this.positionUniforms.uMouse = {value: new THREE.Vector3(0, 0, 0)}
+
+    this.velocityUniforms.uTime = {value: 0.0}
+    this.velocityUniforms.uMouse = {value: new THREE.Vector3(0, 0, 0)}
+
+    this.positionUniforms.uProgress = {value: 0.0}
+    this.positionUniforms.uOriginalPosition = {value: this.pointsOnSphere}
+    this.velocityUniforms.uOriginalPosition = {value: this.pointsOnSphere}
+    this.material.uniforms.particleSize.value = 2
+    this.gpuCompute.init()
   }
 
   // Setup FBO
@@ -286,7 +361,6 @@ export default class App {
         uMouse: {value: new THREE.Vector3(0, 0, 0)},
         uProgress: {value: 0},
         particleSpeed: {value: 0.001},
-        interactionForceValue: {value: 0.1},
         frictionValue: {value: 0.99},
         uTime: {value: 0},
         // get the current position that update every frames
@@ -299,7 +373,7 @@ export default class App {
         uOriginalPosition1: {value: this.data1},
       },
       vertexShader: simVertex,
-      fragmentShader: simFragment,
+      fragmentShader: simFragmentPosition,
     })
     this.simMesh = new THREE.Mesh(geo, this.simMaterial)
     this.sceneFBO.add(this.simMesh)
@@ -376,20 +450,26 @@ export default class App {
     // this.renderer.render(this.scene, this.camera)
     // this.renderer.render(this.sceneFBO, this.cameraFBO)
 
-    this.renderer.setRenderTarget(this.renderTarget)
-    this.renderer.render(this.sceneFBO, this.cameraFBO)
+    // this.renderer.setRenderTarget(this.renderTarget)
+    // this.renderer.render(this.sceneFBO, this.cameraFBO)
 
-    this.renderer.setRenderTarget(null)
+    // this.renderer.setRenderTarget(null)
+    this.gpuCompute.compute()
     this.renderer.render(this.scene, this.camera)
 
-    //swap render targets
-    const tmp = this.renderTarget
-    this.renderTarget = this.renderTarget1
-    this.renderTarget1 = tmp
+    //swap render targets ( not need on GPGPU )
+    // const tmp = this.renderTarget
+    // this.renderTarget = this.renderTarget1
+    // this.renderTarget1 = tmp
 
-    this.material.uniforms.uTexture.value = this.renderTarget.texture
-    this.simMaterial.uniforms.uCurrentPosition.value = this.renderTarget1.texture
-    this.simMaterial.uniforms.uTime.value = this.time
+    this.material.uniforms.uTexture.value = this.gpuCompute.getCurrentRenderTarget(
+      this.positionVariable,
+    ).texture
+
+    this.positionUniforms.uTime.value = this.time
+
+    // this.simMaterial.uniforms.uCurrentPosition.value = this.renderTarget1.texture
+    // this.simMaterial.uniforms.uTime.value = this.time
 
     window.requestAnimationFrame(this.render.bind(this))
   }
