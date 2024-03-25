@@ -3,6 +3,8 @@ import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js'
 import vertexShader from './shaders/vertex.glsl'
 import fragmentShader from './shaders/fragment.glsl'
 import {GPUComputationRenderer} from 'three/examples/jsm/misc/GPUComputationRenderer.js'
+import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js'
+import {MeshSurfaceSampler} from 'three/examples/jsm/math/MeshSurfaceSampler.js'
 
 import simVertex from './shaders/simVertex.glsl'
 import simFragmentPosition from './shaders/simFragment.glsl'
@@ -12,6 +14,8 @@ import texture from '../test.jpg'
 import t1 from '../logo.png'
 import t2 from '../super.png'
 import GUI from 'lil-gui'
+
+import suzanne from '../suzanne.glb?url'
 
 // lerp
 function lerp(a, b, n) {
@@ -35,7 +39,7 @@ const loadImage = (path) => {
 
 export default class App {
   constructor(options) {
-    this.size = 512
+    this.size = 1024
     this.number = this.size * this.size
 
     this.container = options.dom
@@ -57,28 +61,35 @@ export default class App {
 
     this.camera = new THREE.PerspectiveCamera(70, this.width / this.height, 0.01, 10)
     this.camera.position.z = 2
-
+    this.loader = new GLTFLoader()
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
 
     this.time = 0
+    this._position = new THREE.Vector3()
 
     // GUI
     this.setupSettings()
 
     // To load 2 texture
-    Promise.all([this.getPixelDataFromImage(t1), this.getPixelDataFromImage(t2)]).then(
-      (textures) => {
-        this.data = this.getPointsOnSphere()
-        this.data1 = textures[1]
-        // moving all after load texture
-        this.addObjects()
-        this.initGPGPU()
-        this.setupFBO()
-        this.mouseEvents()
-        this.setupResize()
-        this.render()
-      },
-    )
+    Promise.all([this.loader.loadAsync(suzanne)]).then(([model]) => {
+      this.suzanne = model.scene.children[0]
+      this.suzanne.material = new THREE.MeshNormalMaterial()
+
+      this.sampler = new MeshSurfaceSampler(this.suzanne).build()
+
+      // this.scene.add(this.suzanne)
+
+      // this.suzanne.geometry.rotateX(-Math.PI / 2)
+      this.data = this.getPointsOnSphere()
+      this.data1 = this.getPointsOnSphere()
+      // moving all after load texture
+      this.addObjects()
+      this.initGPGPU()
+      this.setupFBO()
+      this.mouseEvents()
+      this.setupResize()
+      this.render()
+    })
   }
 
   //Setup GUI
@@ -103,6 +114,31 @@ export default class App {
     this.gui.add(this.settings, 'frictionValue', 0.01, 0.999, 0.001).onChange((val) => {
       this.simMaterial.uniforms.frictionValue.value = val
     })
+  }
+
+  getPointsOnSuzanne() {
+    const data = new Float32Array(4 * this.number)
+    for (let i = 0; i < this.size; i++) {
+      for (let j = 0; j < this.size; j++) {
+        const index = i * this.size + j
+        this.sampler.sample(this._position)
+
+        data[4 * index] = this._position.x
+        data[4 * index + 1] = this._position.y
+        data[4 * index + 2] = this._position.z
+        data[4 * index + 3] = (Math.random() - 0.5) * 0.01
+      }
+    }
+
+    let dataTexture = new THREE.DataTexture(
+      data,
+      this.size,
+      this.size,
+      THREE.RGBAFormat,
+      THREE.FloatType,
+    )
+    dataTexture.needsUpdate = true
+    return dataTexture
   }
 
   getVelocitiesOnSphere() {
@@ -189,7 +225,7 @@ export default class App {
         pixels.push({x: x / width - 0.5, y: 0.5 - y / width})
       }
     }
-    console.log(pixels)
+    // console.log(pixels)
 
     // Create data Texture
     const data = new Float32Array(4 * this.number)
@@ -237,10 +273,7 @@ export default class App {
   mouseEvents() {
     //Get intersection from particles in not raccomanded so ->
     //Create a plane to get intersection
-    this.planeMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(1, 30, 30),
-      new THREE.MeshNormalMaterial(),
-    )
+    this.raycasterMesh = new THREE.Mesh(this.suzanne.geometry, new THREE.MeshNormalMaterial())
 
     this.dummy = new THREE.Mesh(
       new THREE.SphereGeometry(0.015, 10, 10),
@@ -258,7 +291,7 @@ export default class App {
       this.raycaster.setFromCamera(this.pointer, this.camera)
 
       //Intersect whit the Plane Mesh
-      const intersects = this.raycaster.intersectObjects([this.planeMesh])
+      const intersects = this.raycaster.intersectObjects([this.raycasterMesh])
       if (intersects.length > 0) {
         this.dummy.position.copy(intersects[0].point)
         // console.log(intersects[0].point)
@@ -283,7 +316,7 @@ export default class App {
       gpuCompute.setDataType(THREE.HalfFloatType)
     }
 
-    this.pointsOnSphere = this.getPointsOnSphere()
+    this.pointsOnSphere = this.getPointsOnSuzanne()
     this.positionVariable = this.gpuCompute.addVariable(
       'uCurrentPosition',
       simFragmentPosition,
