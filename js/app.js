@@ -14,8 +14,10 @@ import texture from '../test.jpg'
 import t1 from '../logo.png'
 import t2 from '../super.png'
 import GUI from 'lil-gui'
+import {gsap} from 'gsap'
 
-import suzanne from '../suzanne.glb?url'
+// import suzanne from '../suzanne.glb?url'
+import suzanne from '../logo_fao.glb?url'
 
 // lerp
 function lerp(a, b, n) {
@@ -44,6 +46,7 @@ export default class App {
 
     this.container = options.dom
     this.scene = new THREE.Scene()
+    // this.scene.scale.set(0.01, 0.01, 0.01)
 
     this.width = this.container.offsetWidth
     this.height = this.container.offsetHeight
@@ -55,7 +58,7 @@ export default class App {
       alpha: true,
       antialias: true,
     })
-    this.renderer.setClearColor(0x222222, 1)
+    this.renderer.setClearColor(0xffffff, 1)
     this.renderer.setSize(this.width, this.height)
     this.container.appendChild(this.renderer.domElement)
 
@@ -68,7 +71,7 @@ export default class App {
     this._position = new THREE.Vector3()
 
     // GUI
-    this.setupSettings()
+    // this.setupSettings()
 
     // To load 2 texture
     Promise.all([this.loader.loadAsync(suzanne)]).then(([model]) => {
@@ -89,6 +92,16 @@ export default class App {
       this.mouseEvents()
       this.setupResize()
       this.render()
+      this.startAnimation()
+    })
+  }
+
+  startAnimation() {
+    const tl = gsap.timeline()
+    tl.to('canvas', {
+      opacity: 0.3,
+      ease: 'power1.inOut',
+      duration: 2,
     })
   }
 
