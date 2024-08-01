@@ -3,7 +3,7 @@ import {defineConfig} from 'vite'
 const ASSET_URL = process.env.ASSET_URL || ''
 
 export default defineConfig({
-  base: `https://www.surfexplore.it/wip/wshop/`,
+  base: `https://www.surfexplore.it/wip/fao-rollup/`,
 
   plugins: [glsl()],
   server: {

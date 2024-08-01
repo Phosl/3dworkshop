@@ -22,24 +22,23 @@ void main() {
     // position += velocity;
 
     // // friction
-    velocity *= 0.5;
+    velocity *= 0.65;
 
     // particle Attraction
     vec3 direction = normalize(original - position);
     float dist = length(original - position);
     if(dist > 0.01) {
-        velocity += direction * 0.001;
+        velocity += direction * 0.0001;
     }
 
     // mouse repel force
     float mouseDistance = distance(position,uMouse);
     // sized brush
-    float maxDistance = 0.6 ;
+    float maxDistance = 0.8 ;
     if(mouseDistance < maxDistance) {
         vec3 direction = normalize(position - uMouse);
-        velocity += direction * (1.0 - mouseDistance / maxDistance) * 0.01;
+        velocity += direction * (1.0 - mouseDistance / maxDistance) * 0.0006;
     }
-
 
     // position.xy += velocity;
 

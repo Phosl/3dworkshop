@@ -15,9 +15,14 @@ import t1 from '../logo.png'
 import t2 from '../super.png'
 import GUI from 'lil-gui'
 import {gsap} from 'gsap'
+import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js'
+import {RenderPass} from 'three/addons/postprocessing/RenderPass.js'
+import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js'
+import {OutputPass} from 'three/addons/postprocessing/OutputPass.js'
 
 // import suzanne from '../suzanne.glb?url'
 import suzanne from '../logo_fao.glb?url'
+// import suzanne from '../grid.glb?url'
 
 // lerp
 function lerp(a, b, n) {
@@ -41,9 +46,9 @@ const loadImage = (path) => {
 
 export default class App {
   constructor(options) {
-    this.size = 1024
+    this.effectActive = false
+    this.size = 516
     this.number = this.size * this.size
-
     this.container = options.dom
     this.scene = new THREE.Scene()
     // this.scene.scale.set(0.01, 0.01, 0.01)
@@ -60,12 +65,36 @@ export default class App {
     })
     this.renderer.setClearColor(0xffffff, 1)
     this.renderer.setSize(this.width, this.height)
-    this.container.appendChild(this.renderer.domElement)
 
-    this.camera = new THREE.PerspectiveCamera(70, this.width / this.height, 0.01, 10)
-    this.camera.position.z = 2
+    this.camera = new THREE.PerspectiveCamera(70, this.width / this.height, 0.001, 100)
+    this.camera.position.z = 1
+
+    this.renderScene = new RenderPass(this.scene, this.camera)
+
+    if (this.effectActive) {
+      this.bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(this.width, this.height),
+        1.5,
+        0.4,
+        0.85,
+      )
+      this.bloomPass.threshold = 0.999
+      this.bloomPass.strength = 1
+      this.bloomPass.radius = 15
+
+      this.outputPass = new OutputPass()
+
+      this.composer = new EffectComposer(this.renderer)
+      this.composer.addPass(this.renderScene)
+      this.composer.addPass(this.bloomPass)
+      this.composer.addPass(this.outputPass)
+      this.container.appendChild(this.renderer.domElement)
+    } else {
+      this.container.appendChild(this.renderer.domElement)
+    }
+
     this.loader = new GLTFLoader()
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement)
+    // this.controls = new OrbitControls(this.camera, this.renderer.domElement)
 
     this.time = 0
     this._position = new THREE.Vector3()
@@ -89,20 +118,54 @@ export default class App {
       this.addObjects()
       this.initGPGPU()
       this.setupFBO()
-      this.mouseEvents()
       this.setupResize()
       this.render()
       this.startAnimation()
+      this.mouseEvents()
     })
   }
 
   startAnimation() {
     const tl = gsap.timeline()
-    tl.to('canvas', {
-      opacity: 0.3,
-      ease: 'power1.inOut',
-      duration: 2,
-    })
+    tl.fromTo(
+      'canvas',
+      {
+        opacity: 0,
+      },
+      {
+        ease: 'power1.in',
+        duration: 4,
+        opacity: 0.6,
+      },
+    )
+      .fromTo(
+        'canvas',
+        {
+          ease: 'power1.in',
+          scale: 3,
+        },
+        {
+          duration: 2,
+          scale: 1,
+        },
+        '-=3',
+      )
+      .fromTo(
+        '.item-link',
+        {
+          opacity: 0,
+          y: '100px',
+        },
+
+        {
+          opacity: 1,
+          ease: 'power1.out',
+          stagger: 0.3,
+          duration: 0.6,
+          y: 0,
+        },
+        '-=1.6',
+      )
   }
 
   //Setup GUI
@@ -286,7 +349,10 @@ export default class App {
   mouseEvents() {
     //Get intersection from particles in not raccomanded so ->
     //Create a plane to get intersection
-    this.raycasterMesh = new THREE.Mesh(this.suzanne.geometry, new THREE.MeshNormalMaterial())
+
+    this.planeMesh = new THREE.PlaneGeometry(20, 20, 1, 1)
+
+    this.raycasterMesh = new THREE.Mesh(this.planeMesh, new THREE.MeshNormalMaterial())
 
     this.dummy = new THREE.Mesh(
       new THREE.SphereGeometry(0.015, 10, 10),
@@ -295,7 +361,7 @@ export default class App {
       }),
     )
 
-    this.scene.add(this.dummy)
+    // this.scene.add(this.dummy)
     // this.scene.add(this.planeMesh)
 
     window.addEventListener('mousemove', (e) => {
@@ -307,6 +373,14 @@ export default class App {
       const intersects = this.raycaster.intersectObjects([this.raycasterMesh])
       if (intersects.length > 0) {
         this.dummy.position.copy(intersects[0].point)
+        // inertia to dummy position
+        gsap.to(this.dummy.position, {
+          x: intersects[0].point.x,
+          y: intersects[0].point.y,
+          z: intersects[0].point.z,
+          duration: 0.5,
+        })
+
         // console.log(intersects[0].point)
         // Update uniform on mouse position of simMaterial
         this.simMaterial.uniforms.uMouse.value = intersects[0].point
@@ -503,8 +577,13 @@ export default class App {
 
     // this.renderer.setRenderTarget(null)
     this.gpuCompute.compute()
-    this.renderer.render(this.scene, this.camera)
+    // this.renderer.render(this.scene, this.camera)
 
+    if (this.effectActive) {
+      this.composer.render()
+    } else {
+      this.renderer.render(this.scene, this.camera)
+    }
     //swap render targets ( not need on GPGPU )
     // const tmp = this.renderTarget
     // this.renderTarget = this.renderTarget1
@@ -515,7 +594,10 @@ export default class App {
     ).texture
 
     this.positionUniforms.uTime.value = this.time
-
+    // this.mesh.rotation.y = this.time * 0.01
+    // this.simMesh.rotation.y = this.time * 0.01
+    // this.suzanne.rotation.y = this.time * 0.01
+    // this.raycasterMesh.rotation.y = this.time * 0.01
     // this.simMaterial.uniforms.uCurrentPosition.value = this.renderTarget1.texture
     // this.simMaterial.uniforms.uTime.value = this.time
 
